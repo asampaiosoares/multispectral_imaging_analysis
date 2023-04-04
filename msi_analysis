@@ -1,0 +1,112 @@
+clear all; 
+close all; clc
+
+%% General use
+% This script can be used in the following manner:
+
+% 1. Import the data and process it to allow the selection of ROI (once the script is run it will display the whole speciment to select the ROI once
+% (ROI1) and then the ROI2. Most tasks will only work on ROI1
+
+%2. The ROI is then positioned to allow the identification of the trend line which is done using the curve fitter app, 
+% selecting the X axis (the one that is in the desired direction after the rotation) and the values from the matrix, while omitting the Y axis
+
+%3. The data is then recorded in a specific excel file
+
+
+%%% Data import %%%%
+
+% load baseline .mat file which includes THb, HbO2 from which to
+% obtain the SO2 maps
+
+load('C:\Users\anton\Desktop\msi_analysis\unprocessed_data\case14_pre.mat')
+
+ % Load a pre-selected mask that should be present in the corresponding analysis folder
+     load('C:\Users\anton\Desktop\msi_analysis\analysis_files\ROI_analysis\14_pre\14_pre_ROI1.mat' )
+
+% Calculate O2 saturation per pixel
+    THb = MSIoutput.cHbO2 + MSIoutput.cHb;
+    SO2 = MSIoutput.cHbO2./THb;
+    errThresh = 0.9;
+
+% You should also exclude any pixels associated with a ‘low’ CoD. I usually choose a threshold of 0.9 (though I’ve seen others use one of 0.8 too). I start by setting these unreliable pixels to zero:
+
+    SO2(MSIoutput.CoD<errThresh) = 0;
+    THb(MSIoutput.CoD< errThresh) = 0;
+    alpha(MSIoutput.CoD<0.9) = 0;
+    cLd(MSIoutput.CoD<0.9) = 0;
+
+% fill missing NaN values with 0 using imputation of the mean of nearest values
+% with the fillmissing function
+    SO2_processed = fillmissing(SO2, 'movmean', 100);
+
+% Invert Y axis, change colormap to jet, change levels to > 50%
+    % contour(SO2_processed)
+
+% Turn SO2_processed into a binary image for segmentation
+   SO2_grayscale = mat2gray(SO2_processed);
+
+
+% Draw or load mask and obtain summary statistics from the masks (M * mask)
+        
+    % Select ROI1, first selection if mask not loaded previously
+    % mask1 = roipoly(SO2_grayscale)
+    
+    ROI_values1 = SO2_grayscale.*mask1;
+    contour(SO2_grayscale)
+
+  % Aggregate summary statistics
+    Mean_ROI1 = mean(nonzeros(ROI_values1));
+    Mode_ROI1 = mode(nonzeros(ROI_values1));
+    Max_ROI1 = max(nonzeros(ROI_values1));
+    Min_ROI1 = min(nonzeros(ROI_values1));
+    Std_ROI1 = std2(nonzeros(ROI_values1));
+
+    % Plot main contour and mask1 results side by side   
+%     subplot(1, 2,  1)
+%     imshow(SO2_grayscale)
+%     title('Original image')
+%     subplot(1, 2,  2)
+%     imshow(mask1) 
+%     title('Mask')
+%     colormap jet;
+%     
+%%  Region of interest analysis according to distance from anatomical landmarks
+    
+    % Crop ROI_values1 to obtain a matrix with the region of interest
+    % only, selecting the area to be subset ROI_cropped( Ybeginning : Yending, Xbeginning:
+    % Xending)
+    ROI1_cropped = ROI_values1(250:550,280:650);
+    contour(ROI1_cropped)
+    
+%% 
+    
+    % Rotate the matrix A a desired angle theta using imrotate(A,theta),
+    % generally aiming at placing the X axis perpendicular to the desired
+    % anatomical landmark
+    ROI1_rotate = imrotate(ROI1_cropped, 230);
+    contour(ROI1_rotate)
+    
+%% 
+ 
+    % Regional data fitting: first vectorize the data using the 3 lines
+    % below, then use Curve Fitter app
+    [m,n] = size(ROI1_rotate) ;
+    [X,Y] = meshgrid(1:n,1:m) ;
+    P = [X(:) Y(:) ROI1_rotate(:)];
+   
+     
+% General approach: selecting X as the X variable and ROI1_rotate as the Y
+% variable, exclude zeros, include 1st degree polynomial fit
+    curveFitter(X, ROI1_rotate)
+    % curveFitter('poly1_msi_fit.sfit') NOT WORKING
+
+    % ROI 2, second selection
+%     mask2 = roipoly(SO2_grayscale) 
+
+%     ROI_Values2 = SO2_grayscale.*mask2;
+% 
+%     Mean_ROI2 = mean(nonzeros(ROI_Values2))
+%     Mode_ROI2 = mode(nonzeros(ROI_Values2))
+%     Max_ROI2 = max(nonzeros(ROI_Values2))
+%     Min_ROI2 = min(nonzeros(ROI_Values2))
+%     Std_ROI2 = std2(nonzeros(ROI_Values2))
